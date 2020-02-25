@@ -13,3 +13,7 @@
 .App-link {
   color: #61dafb;
 }
+
+.react-fine-uploader-gallery-file-input-container {
+  width: auto !important; 
+}

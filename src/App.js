@@ -1,47 +1,17 @@
 import React, { Component } from 'react';
 import './App.css';
-import { Container, Header, Image, Menu, Dropdown, Form, Table } from 'semantic-ui-react'
+import DeleteIcon from './components/DeleteIcon'
+import LogIcon from './components/LogIcon'
+import { Container, Header, Image, Menu, Dropdown, Form, Table, Button, Icon, Popup } from 'semantic-ui-react'
 import FineUploaderTraditional from 'fine-uploader-wrappers'
 import Gallery from 'react-fine-uploader'
 
 import 'react-fine-uploader/gallery/gallery.css'
 import 'semantic-ui-css/semantic.min.css'
+import { getAssignResult, uploaderUrl, downloadUrl, appendJob } from './remote';
+import { primerseq_option, taxalg_options, rdpdb_options, conflevel_options, trlen_options, defaultTaxonomyOptions } from './validators/TaxonomyOptions.js'
+import { taxonomyOptionValidator } from './validators/TaxonomyOptionValidator.js'
 
-const primerseq_option = [
-  { key: 'Archaea', text: 'Archaea', value: 'Archaea' },
-  { key: 'Bacteria', text: 'Bacteria', value: 'Bacteria' },
-  { key: 'Prokaryotes', text: 'Prokaryotes', value: 'Prokaryotes' }
-]
-
-const taxalg_options = [
-  { key: 'RDP', text: 'RDP', value: 'RDP' },
-  { key: 'BLAST', text: 'BLAST', value: 'BLAST' },
-  { key: 'UCLUST', text: 'UCLUST', value: 'UCLUST' },
-]
-
-const rdpdb_options = [
-  { key: 'greengenes', text: 'greengenes', value: 'greengenes' },
-  { key: 'silva', text: 'silva', value: 'silva' },
-  { key: 'unite', text: 'unite', value: 'unite' },
-]
-
-const conflevel_options = [
-  { key: '0.9', text: '0.9', value: '0.9' },
-  { key: '0.8', text: '0.8', value: '0.8' },
-  { key: '0.7', text: '0.7', value: '0.7' },
-  { key: '0.6', text: '0.6', value: '0.6' },
-  { key: '0.5', text: '0.5', value: '0.5' },
-  { key: '0.4', text: '0.4', value: '0.4' },
-  { key: '0.3', text: '0.3', value: '0.3' },
-  { key: '0.2', text: '0.2', value: '0.2' },
-  { key: '0.1', text: '0.1', value: '0.1' },
-]
-
-const trlen_options = [
-  { id: 'nt', value: 'nt', text: 'Not truncate' },
-  { id: '200', value: '200', text: '200bp' },
-  { id: '250', value: '250', text: '250bp' },
-]
 
 const uploader = new FineUploaderTraditional({
   options: {
@@ -50,10 +20,10 @@ const uploader = new FineUploaderTraditional({
     },
     deleteFile: {
       enabled: true,
-      endpoint: 'http://localhost:8000/upload'
+      endpoint: uploaderUrl
     },
     request: {
-      endpoint: 'http://localhost:8000/upload'
+      endpoint: uploaderUrl
     },
     retry: {
       enableAuto: true
@@ -61,38 +31,101 @@ const uploader = new FineUploaderTraditional({
   }
 })
 
-uploader.on('complete', (id, name, response) => {
-  console.log(id, name, response)
-})
-
-uploader.on('submit', (id, name) => {
-  console.log(id, name)
-})
-
-uploader.on('delete', (id) => {
-  console.log(id)
-})
-
-
 class App extends Component {
   constructor(props) {
     super(props)
-    this.state = {checkedstate:false, resultData:[], intervalId:null}
+    this.state = {
+      checkedstate:false,
+      resultData:[],
+      intervalId:null,
+      uploadedFile:[],
+      formData: defaultTaxonomyOptions,
+    }
+    
+    uploader.on('complete', (id, name, response) => {
+      this.setState({
+        uploadedFile: [
+          ...this.state.uploadedFile,
+          {
+            id: id,
+            name: name,
+            uuid: uploader.methods.getUuid(id),
+          }
+        ]
+      })
+    })
+
+    uploader.on('delete', (id) => {
+      this.setState({
+        uploadedFile: this.state.uploadedFile.filter((value) => value.id !== id),
+      })
+    })
+    this.galleryRef = React.createRef()
+  }
+
+  resetFormData() {
+    for(let uploadedFile of this.state.uploadedFile) {
+      this.galleryRef.current._removeVisibleFile(uploadedFile.id)
+    }
+    uploader.methods.reset()
+    this.setState({
+      formData: defaultTaxonomyOptions,
+      uploadedFile: [],
+    })
+  }
+
+  handleChange = (e, {name, value}) => {
+    this.setState({formData:{...this.state.formData, [name]: value}})
+    console.log(name, value)
+  }
+
+  handleCheck = (e, {name, checked}) => {
+    let matchOptionList = this.state.formData.match_option
+    let isNameInState = matchOptionList.includes(name)
+    if (!checked && isNameInState) {
+      this.setState({
+        formData: {
+          ...this.state.formData,
+          match_option: matchOptionList.filter((value) => value !== name)
+        }
+      })
+    } else if (checked && !isNameInState) {
+      this.setState({
+        formData: {
+          ...this.state.formData,
+          match_option: [...matchOptionList, name]
+        }
+      })
+    }
+  }
+
+  onSubmit = () => {
+    if(!taxonomyOptionValidator(this.state.formData)) {
+      // ERROR
+    }
+    var data = {
+      ...this.state.formData,
+      filepaths: this.state.uploadedFile.map((item) => `${item.uuid}/${item.name}`).join(),
+    }
+    console.log("data:", data)
+    appendJob(data).then(()=> {
+      this.resetFormData()
+      this.fetchResultData()
+    })
+  }
+
+  fetchResultData = () => {
+    getAssignResult()
+      .then((result) => {
+        this.setState({
+          resultData: result
+        })
+      })
   }
 
   componentDidMount() {
-    var vm = this;
-    function fetchResultData(){
-      fetch("http://asdf:8787/list")
-        .then(res => res.json())
-        .then((result) => {
-          vm.setState({
-            resultData: result
-          })
-        })
-      return fetchResultData
-    }
-    let intervalId = setInterval(fetchResultData(), 30000)
+    this.fetchResultData()
+    let intervalId = setInterval(this.fetchResultData, 30000)
     this.setState({intervalId: intervalId})
   }
 
@@ -101,14 +134,22 @@ class App extends Component {
   }
 
   render() {
-    const resultTableBody = this.state.resultData.map((data) => {
+    const sortFcn = (a, b) => (a.created_time < b.created_time) ? 1 : ((b.created_time < a.created_time) ? -1 : 0)
+    const resultTableBody = this.state.resultData.sort(sortFcn).map((data) => {
       console.log(data.id)
       return (
-        <Table.Row key={data.id} positive={data.job_state==='FINISHED'} negative={data.job_state==='FAIED'}>
-          <Table.Cell>{data.task_name}</Table.Cell>
+        <Table.Row key={data.id} positive={data.job_state==='FINISHED'} negative={data.job_state==='FAILED'}>
+          <Table.Cell>
+            <Popup
+              trigger={<div>{data.task_name}</div>}
+              header="Job info"
+              content={<pre>{JSON.stringify(data, null, 2)}</pre>}/>
+          </Table.Cell>
           <Table.Cell>{data.job_state}</Table.Cell>
-          <Table.Cell>{data.result_path}</Table.Cell>
+          <Table.Cell><a href={`${downloadUrl}/${data.result_path}`}>{data.result_path}</a></Table.Cell>
           <Table.Cell>{data.created_time}</Table.Cell>
+          <Table.Cell collapsing><DeleteIcon dataId={data.id} onFininshed={this.fetchResultData} state={data.job_state}/></Table.Cell>
+          <Table.Cell collapsing><LogIcon dataId={data.id} onFininshed={this.fetchResultData} logdir={data.log_path}/></Table.Cell>
         </Table.Row>
       )
     });
@@ -143,41 +184,69 @@ class App extends Component {
         </Menu>
         <Container style={{ marginTop: '7em' }} text>
           <Header as='h1'>Taxonomy Assign</Header>
-          <Gallery uploader={uploader} />
+          <Gallery uploader={uploader} ref={this.galleryRef}/>
           
           <Form style={{ marginTop: '2em' }}>
 
             <Form.Field>
-              <Form.Input fluid label='Task name' placeholder='' name='taskname'/>
+              <Form.Input fluid label='Task name' placeholder='' name='taskname' value={this.state.formData.taskname} onChange={this.handleChange}/>
             </Form.Field>
 
             <Form.Field>
-              <Form.Select fluid label='Primer sequence' name='primerseq' options={primerseq_option} defaultValue='Bacteria'/>
+              <Form.Select fluid label='Primer sequence' name='primerseq' options={primerseq_option} value={this.state.formData.primerseq} onChange={this.handleChange}/>
             </Form.Field>
 
             <Form.Field>
               <Form.Group grouped>
                 <label>Match option</label>
-                <Form.Checkbox label='Forward Primer' checked={this.state.checkedstate} onChange={() => this.setState({checkedstate: !this.state.checkedstate})}/>
-                <Form.Checkbox label='Reverse Primer' checked={this.state.checkedstate} onChange={() => this.setState({checkedstate: !this.state.checkedstate})}/>
-                <Form.Checkbox label='Full length' checked={this.state.checkedstate} onChange={() => this.setState({checkedstate: !this.state.checkedstate})}/>
+                <Form.Checkbox name='fwd' label='Forward Primer' checked={this.state.formData.match_option.includes('fwd')} onChange={this.handleCheck}/>
+                <Form.Checkbox name='rev' label='Reverse Primer' checked={this.state.formData.match_option.includes('rev')} onChange={this.handleCheck}/>
+                <Form.Checkbox name='full' label='Full length' checked={this.state.formData.match_option.includes('full')} onChange={this.handleCheck}/>
               </Form.Group>
             </Form.Field>
 
             <Form.Field>
-              <Form.Select fluid label='Taxonomy assign algorithm' name='taxalg' options={taxalg_options} defaultValue='RDP'/>
+              <Form.Select fluid label='Taxonomy assign algorithm' name='taxalg' options={taxalg_options} value={this.state.formData.taxalg} onChange={this.handleChange}/>
             </Form.Field>
 
             <Form.Field>
-              <Form.Select fluid label='RDP Database' name='rdpdb' options={rdpdb_options} defaultValue='greengenes' />
+              <Form.Select fluid label='RDP Database' name='rdpdb' options={rdpdb_options} value={this.state.formData.rdpdb} onChange={this.handleChange} />
             </Form.Field>
 
             <Form.Field>
-              <Form.Select fluid label='Confidency level' name='conflevel' options={conflevel_options} defaultValue='0.2' />
+              <Form.Select fluid label='Confidency level' name='conflevel' options={conflevel_options} value={this.state.formData.conflevel} onChange={this.handleChange} />
             </Form.Field>
 
             <Form.Field>
-              <Form.Select fluid label='Truncate length' name='trlen' options={trlen_options} defaultValue='nt' />
+              <Form.Select fluid label='Truncate length' name='trlen' options={trlen_options} value={this.state.formData.trlen} onChange={this.handleChange} />
+            </Form.Field>
+
+            <Form.Field>
+              <Button fluid icon primary
+                labelPosition = 'right'
+                onClick={this.onSubmit}
+                disabled={this.state.uploadedFile.length === 0}>
+                Submit
+                <Icon name='right arrow' />
+              </Button>
+            </Form.Field>
+
+            <Form.Field>
+              <Button fluid icon
+                onClick={this.resetFormData.bind(this)}
+                labelPosition = 'right'>
+                Reset
+                <Icon name='right arrow' />
+              </Button>
+            </Form.Field>
+
+            <Form.Field>
+              <Button fluid icon negative
+                onClick={() => console.log(this.state.formData)}
+                labelPosition = 'right'>
+                DBG
+                <Icon name='right arrow' />
+              </Button>
             </Form.Field>
           </Form>
           <Table celled>
@@ -187,12 +256,15 @@ class App extends Component {
                 <Table.HeaderCell>Status</Table.HeaderCell>
                 <Table.HeaderCell>Link</Table.HeaderCell>
                 <Table.HeaderCell>Created Time</Table.HeaderCell>
+                <Table.HeaderCell></Table.HeaderCell>
+                <Table.HeaderCell></Table.HeaderCell>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {resultTableBody}
             </Table.Body>
           </Table>
+          <br/>
         </Container>
 
       </div>
