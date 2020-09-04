@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "clipboard": "^2.0.6",
     "fine-uploader": "^5.16.2",
     "react": "^16.8.4",
+    "react-copy-to-clipboard": "^5.0.2",
     "react-dom": "^16.8.4",
     "react-fine-uploader": "^1.1.1",
     "react-scripts": "2.1.8",

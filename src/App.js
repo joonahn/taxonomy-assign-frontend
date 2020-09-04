@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import './App.css';
 import DeleteIcon from './components/DeleteIcon'
 import LogIcon from './components/LogIcon'
-import { Container, Header, Image, Menu, Dropdown, Form, Table, Button, Icon, Popup } from 'semantic-ui-react'
+import { Container, Header, Menu, Form, Table, Button, Icon, Modal } from 'semantic-ui-react'
 import FineUploaderTraditional from 'fine-uploader-wrappers'
 import Gallery from 'react-fine-uploader'
 
@@ -40,6 +40,7 @@ class App extends Component {
       intervalId:null,
       uploadedFile:[],
       formData: defaultTaxonomyOptions,
+      isLoading: false,
     }
     
     uploader.on('complete', (id, name, response) => {
@@ -115,10 +116,14 @@ class App extends Component {
   }
 
   fetchResultData = () => {
+    this.setState({
+      isLoading: true
+    })
     getAssignResult()
       .then((result) => {
         this.setState({
-          resultData: result
+          resultData: result,
+          isLoading: false
         })
       })
   }
@@ -127,6 +132,7 @@ class App extends Component {
     this.fetchResultData()
     let intervalId = setInterval(this.fetchResultData, 30000)
     this.setState({intervalId: intervalId})
+    document.title = "Taxonomy Assigner"
   }
 
   componentWillUnmount() {
@@ -140,10 +146,11 @@ class App extends Component {
       return (
         <Table.Row key={data.id} positive={data.job_state==='FINISHED'} negative={data.job_state==='FAILED'}>
           <Table.Cell>
-            <Popup
+            <Modal
               trigger={<div>{data.task_name}</div>}
               header="Job info"
-              content={<pre>{JSON.stringify(data, null, 2)}</pre>}/>
+              content={<div class="content"><pre>{JSON.stringify(data, null, 2)}</pre></div>}
+              actions={[{ key: 'close', content: 'Close', positive: true }]}/>
           </Table.Cell>
           <Table.Cell>{data.job_state}</Table.Cell>
           <Table.Cell><a href={`${downloadUrl}/${data.result_path}`}>{data.result_path}</a></Table.Cell>
@@ -158,28 +165,9 @@ class App extends Component {
         <Menu fixed='top' inverted>
           <Container>
             <Menu.Item as='a' header>
-              <Image size='mini' src='/logo.png' style={{ marginRight: '1.5em' }} />
-              Project Name
+              Taxonomy Assigner  
              </Menu.Item>
-            <Menu.Item as='a'>Home</Menu.Item>
-
-            <Dropdown item simple text='Dropdown'>
-              <Dropdown.Menu>
-                <Dropdown.Item>List Item</Dropdown.Item>
-                <Dropdown.Item>List Item</Dropdown.Item>
-                <Dropdown.Divider />
-                <Dropdown.Header>Header Item</Dropdown.Header>
-                <Dropdown.Item>
-                  <i className='dropdown icon' />
-                  <span className='text'>Submenu</span>
-                  <Dropdown.Menu>
-                    <Dropdown.Item>List Item</Dropdown.Item>
-                    <Dropdown.Item>List Item</Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown.Item>
-                <Dropdown.Item>List Item</Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown>
+            <Menu.Item as='a' href="http://best.postech.ac.kr">BEST Lab.</Menu.Item>
           </Container>
         </Menu>
         <Container style={{ marginTop: '7em' }} text>
@@ -240,14 +228,6 @@ class App extends Component {
               </Button>
             </Form.Field>
 
-            <Form.Field>
-              <Button fluid icon negative
-                onClick={() => console.log(this.state.formData)}
-                labelPosition = 'right'>
-                DBG
-                <Icon name='right arrow' />
-              </Button>
-            </Form.Field>
           </Form>
           <Table celled>
             <Table.Header>
@@ -263,6 +243,17 @@ class App extends Component {
             <Table.Body>
               {resultTableBody}
             </Table.Body>
+            <Table.Footer>
+              <Table.Row>
+                <Table.HeaderCell colSpan='6'>
+                <Button
+                  content="&nbsp;Refresh"
+                  icon='refresh'
+                  loading={this.state.isLoading}
+                  onClick={()=>{this.fetchResultData()}}/>
+                </Table.HeaderCell>
+              </Table.Row>
+            </Table.Footer>
           </Table>
           <br/>
         </Container>
