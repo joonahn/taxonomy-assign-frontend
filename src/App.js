@@ -147,9 +147,9 @@ class App extends Component {
         <Table.Row key={data.id} positive={data.job_state==='FINISHED'} negative={data.job_state==='FAILED'}>
           <Table.Cell>
             <Modal
-              trigger={<div>{data.task_name}</div>}
+              trigger={<div style={{"cursor":"pointer"}}>{data.task_name}</div>}
               header="Job info"
-              content={<div class="content"><pre>{JSON.stringify(data, null, 2)}</pre></div>}
+              content={<div class="content"><pre style={{"overflow-x":"auto"}}>{JSON.stringify(data, null, 2)}</pre></div>}
               actions={[{ key: 'close', content: 'Close', positive: true }]}/>
           </Table.Cell>
           <Table.Cell>{data.job_state}</Table.Cell>
